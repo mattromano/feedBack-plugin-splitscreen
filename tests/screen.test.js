@@ -267,3 +267,24 @@ test('loading with ?ss=<key> under the node test harness does not boot or throw'
     const mod = freshPlugin({ search: '?ss=k7tr4m' });
     assert.equal(typeof mod.getSyncUrl, 'function');
 });
+
+test('custom: per-panel picker offers only views core does not hide', () => {
+    const mod = freshPlugin();
+    const hidden = new Set(['piano', 'tabview', 'jumpingtab', 'drum_highway_3d']);
+    window._vizHiddenInPicker = (id) => hidden.has(id);
+    const list = ['highway_3d', 'drums', 'drum_highway_3d', 'piano', 'tabview', 'keys_highway_3d'].map((id) => ({ id }));
+    assert.deepEqual(mod._pickerVizPlugins(list, {}).map((v) => v.id), ['highway_3d', 'drums', 'keys_highway_3d']);
+    // A panel already on a hidden view keeps that entry so its <select> stays truthful.
+    assert.deepEqual(mod._pickerVizPlugins(list, { vizMode: 'piano' }).map((v) => v.id),
+        ['highway_3d', 'drums', 'piano', 'keys_highway_3d']);
+    assert.equal(mod._pickerShowsJumpingTab({}), false);
+    assert.equal(mod._pickerShowsJumpingTab({ jumpingTabMode: true }), true);
+});
+
+test('custom: without core\'s hide list every view stays offered', () => {
+    const mod = freshPlugin();
+    delete window._vizHiddenInPicker;
+    const list = [{ id: 'piano' }, { id: 'highway_3d' }];
+    assert.deepEqual(mod._pickerVizPlugins(list, {}).map((v) => v.id), ['piano', 'highway_3d']);
+    assert.equal(mod._pickerShowsJumpingTab({}), true);
+});

@@ -1548,6 +1548,21 @@ try {
         };
     }
 
+    // custom (mattromano build): offer only the main highways per panel, using
+    // core's hide list (window._vizHiddenInPicker: 2D, stock drums 3D, piano,
+    // tab, jumping tab, staff view, ...). A panel already on a hidden view keeps
+    // its entry so the select stays truthful. Without core's list, all show.
+    function _pickerHidden(id) {
+        try { return typeof window._vizHiddenInPicker === 'function' && !!window._vizHiddenInPicker(id); }
+        catch (_) { return false; }
+    }
+    function _pickerVizPlugins(list, panel) {
+        return list.filter(vp => (panel && panel.vizMode === vp.id) || !_pickerHidden(vp.id));
+    }
+    function _pickerShowsJumpingTab(panel) {
+        return !!(panel && panel.jumpingTabMode) || !_pickerHidden('jumpingtab');
+    }
+
     // ── Panel lifecycle ──
     function populateSelect(panel, arrIndex) {
         // If /api/plugins fetch failed earlier, re-scan window for viz
@@ -1570,7 +1585,7 @@ try {
         if (panel.lyricsMode) lyricsOpt.selected = true;
         panel.select.appendChild(lyricsOpt);
 
-        if (typeof window.createJumpingTabPane === 'function') {
+        if (typeof window.createJumpingTabPane === 'function' && _pickerShowsJumpingTab(panel)) {
             arrangements.forEach((a, i) => {
                 const jtOpt = document.createElement('option');
                 jtOpt.value = JUMPING_TAB_VALUE + ':' + i;
@@ -1580,7 +1595,7 @@ try {
             });
         }
 
-        vizPlugins.filter(vp => hasVizFactory(vp.id)).forEach(vp => {
+        _pickerVizPlugins(vizPlugins.filter(vp => hasVizFactory(vp.id)), panel).forEach(vp => {
             arrangements.forEach((a, i) => {
                 const opt = document.createElement('option');
                 opt.value = VIZ_PREFIX + ':' + vp.id + ':' + i;
@@ -4817,6 +4832,7 @@ try {
         module.exports = {
             getWsUrl, resolveArrIndex, getDefaultArrangements,
             panelToPrefs, migratePanelPrefs, _ctlRange,
+            _pickerVizPlugins, _pickerShowsJumpingTab,
             getSyncUrl, generateRoomKey, normalizeRoomKey, ensureRoomKey,
             buildShareUrl, makeRemoteFollowerCfg, ROOM_KEY_ALPHABET,
             _setArrangementsForTest(next) { arrangements = next; },
