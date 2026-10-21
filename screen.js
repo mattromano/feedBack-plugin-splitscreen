@@ -2965,10 +2965,7 @@ try {
         } finally {
             _starting = false;
             if (_stopAfterStart) {
-                _stopAfterStart = false;
-                _pendingRedocks.length = 0;
-                _pendingRebuild = false;
-                if (active) stopSplitScreen();
+                _applyStopAfterStart();
             } else {
             // Drain redock requests that arrived mid-start (popup's `docked`
             // message). Each _redockPanel re-enters startSplitScreen (setting
@@ -2989,6 +2986,16 @@ try {
             }
             }
         }
+    }
+
+    // Honour a stop() that arrived mid-start. Re-persist 'false' because the
+    // start itself may have written 'true' after stop() did.
+    function _applyStopAfterStart() {
+        _stopAfterStart = false;
+        _pendingRedocks.length = 0;
+        _pendingRebuild = false;
+        try { localStorage.setItem('splitscreenActive', 'false'); } catch (_) {}
+        if (active) stopSplitScreen();
     }
 
     function stopSplitScreen() {
@@ -4873,6 +4880,7 @@ try {
             buildShareUrl, makeRemoteFollowerCfg, ROOM_KEY_ALPHABET,
             _setArrangementsForTest(next) { arrangements = next; },
             _setStartingForTest(v) { _starting = !!v; },
+            _applyStopAfterStart,
             _stopAfterStartForTest() { return _stopAfterStart; },
         };
     }

@@ -299,23 +299,26 @@ function withAudio(mod, currentTime) {
 
 test('panelTime prefers display time', () => {
     const mod = withAudio(freshPlugin(), 9);
-    global.window.feedBack = { getDisplayTime: () => 3.5 };
-    assert.equal(mod.panelTime(), 3.5);
-    mod._restoreDoc();
+    try {
+        global.window.feedBack = { getDisplayTime: () => 3.5 };
+        assert.equal(mod.panelTime(), 3.5);
+    } finally { mod._restoreDoc(); }
 });
 
 test('panelTime falls back to audio without getDisplayTime', () => {
     const mod = withAudio(freshPlugin(), 9);
-    global.window.feedBack = {};
-    assert.equal(mod.panelTime(), 9);
-    mod._restoreDoc();
+    try {
+        global.window.feedBack = {};
+        assert.equal(mod.panelTime(), 9);
+    } finally { mod._restoreDoc(); }
 });
 
 test('panelTime falls back to audio when display time is non-finite', () => {
     const mod = withAudio(freshPlugin(), 9);
-    global.window.feedBack = { getDisplayTime: () => NaN };
-    assert.equal(mod.panelTime(), 9);
-    mod._restoreDoc();
+    try {
+        global.window.feedBack = { getDisplayTime: () => NaN };
+        assert.equal(mod.panelTime(), 9);
+    } finally { mod._restoreDoc(); }
 });
 
 test('stop is a no-op when inactive', () => {
@@ -331,4 +334,14 @@ test('stop during an in-flight start persists intent and defers teardown', () =>
     global.window.slopsmithSplitscreen.stop();
     assert.equal(global.localStorage.getItem('splitscreenActive'), 'false');
     assert.equal(mod._stopAfterStartForTest(), true);
+});
+
+test('deferred stop re-persists false after the start wrote true', () => {
+    const mod = freshPlugin();
+    mod._setStartingForTest(true);
+    global.window.slopsmithSplitscreen.stop();
+    global.localStorage.setItem('splitscreenActive', 'true'); // start's own write
+    mod._applyStopAfterStart();
+    assert.equal(global.localStorage.getItem('splitscreenActive'), 'false');
+    assert.equal(mod._stopAfterStartForTest(), false);
 });
