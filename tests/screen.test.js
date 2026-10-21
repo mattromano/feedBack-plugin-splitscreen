@@ -288,3 +288,34 @@ test('custom: without core\'s hide list every view stays offered', () => {
     assert.deepEqual(mod._pickerVizPlugins(list, {}).map((v) => v.id), ['piano', 'highway_3d']);
     assert.equal(mod._pickerShowsJumpingTab({}), true);
 });
+
+// ── Display time (A-B loop count-in rewind sweep) + public stop() ──
+function withAudio(mod, currentTime) {
+    global.document.getElementById = (id) => (id === 'audio' ? { currentTime, paused: false } : null);
+    return mod;
+}
+
+test('panelTime prefers display time', () => {
+    const mod = withAudio(freshPlugin(), 9);
+    global.window.feedBack = { getDisplayTime: () => 3.5 };
+    assert.equal(mod.panelTime(), 3.5);
+});
+
+test('panelTime falls back to audio without getDisplayTime', () => {
+    const mod = withAudio(freshPlugin(), 9);
+    global.window.feedBack = {};
+    assert.equal(mod.panelTime(), 9);
+});
+
+test('panelTime falls back to audio when display time is non-finite', () => {
+    const mod = withAudio(freshPlugin(), 9);
+    global.window.feedBack = { getDisplayTime: () => NaN };
+    assert.equal(mod.panelTime(), 9);
+});
+
+test('stop is a no-op when inactive', () => {
+    freshPlugin();
+    assert.equal(typeof global.window.slopsmithSplitscreen.stop, 'function');
+    assert.doesNotThrow(() => global.window.slopsmithSplitscreen.stop());
+    assert.equal(global.localStorage.getItem('splitscreenActive'), null);
+});

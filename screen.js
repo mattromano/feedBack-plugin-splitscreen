@@ -510,6 +510,15 @@ try {
         // to the single-instance main-player path when the user isn't split.
         isActive() { return active; },
 
+        // Switch splitscreen off, like the user toggling it off: persists the
+        // inactive state so navigation-driven re-entry doesn't bring it back.
+        // No-op when not active.
+        stop() {
+            if (!active) return;
+            try { localStorage.setItem('splitscreenActive', 'false'); } catch (_) {}
+            stopSplitScreen();
+        },
+
         // Identify a panel by the highway canvas its renderer received in init().
         panelIndexFor(canvas) {
             if (!active) return null;
@@ -3016,12 +3025,25 @@ try {
     // ── Time sync ──
     let syncInterval = null;
 
+    // Time the panels should draw at. Core's getDisplayTime() returns the A-B
+    // loop count-in rewind sweep time while a sweep runs, else audio time.
+    // Falls back to the audio element on older cores / non-finite values.
+    function panelTime() {
+        const fb = window.feedBack;
+        if (fb && typeof fb.getDisplayTime === 'function') {
+            const t = fb.getDisplayTime();
+            if (Number.isFinite(t)) return t;
+        }
+        const audio = document.getElementById('audio');
+        return audio ? audio.currentTime : 0;
+    }
+
     function startTimeSync() {
         stopTimeSync();
         const audio = document.getElementById('audio');
         syncInterval = setInterval(() => {
             if (!audio || !active) return;
-            const t = audio.currentTime;
+            const t = panelTime();
             for (const p of panels) {
                 if (!p.lyricsMode && !p.jumpingTabMode) p.hw.setTime(t);
             }
@@ -3070,7 +3092,7 @@ try {
             // During playback currentTime advances every frame so this is a
             // no-op there. NaN can appear briefly during a src swap; never
             // broadcast that.
-            const t = audio.currentTime;
+            const t = panelTime();
             if (Number.isFinite(t) && t !== _lastBroadcastTime) {
                 _lastBroadcastTime = t;
                 // Carry the play/pause state on every tick — cheap, and it
@@ -4830,7 +4852,7 @@ try {
     // initializer; does not affect the browser (module is undefined there).
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            getWsUrl, resolveArrIndex, getDefaultArrangements,
+            panelTime, getWsUrl, resolveArrIndex, getDefaultArrangements,
             panelToPrefs, migratePanelPrefs, _ctlRange,
             _pickerVizPlugins, _pickerShowsJumpingTab,
             getSyncUrl, generateRoomKey, normalizeRoomKey, ensureRoomKey,
