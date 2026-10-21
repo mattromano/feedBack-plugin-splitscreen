@@ -144,6 +144,7 @@ try {
     let arrangements = []; // arrangement list from song_info
     let vizPlugins   = []; // {id, name, ...} — type=visualization plugins from /api/plugins
     let _starting    = false; // re-entrancy guard for startSplitScreen
+    let _stopAfterStart = false; // stop() requested while a start is in flight
     let _pendingRebuild = false; // rebuildLayout requested while a start is in flight
     // Redock requests ({popupId, finalState}) that arrived while a start was in
     // flight — drained in startSplitScreen()'s finally, same pattern as
@@ -514,6 +515,13 @@ try {
         // inactive state so navigation-driven re-entry doesn't bring it back.
         // No-op when not active.
         stop() {
+            if (_starting) {
+                // Mid-start: tearing down now would race construction. Persist
+                // intent and let startSplitScreen's finally stop once it's done.
+                try { localStorage.setItem('splitscreenActive', 'false'); } catch (_) {}
+                _stopAfterStart = true;
+                return;
+            }
             if (!active) return;
             try { localStorage.setItem('splitscreenActive', 'false'); } catch (_) {}
             stopSplitScreen();
@@ -934,8 +942,7 @@ try {
             }
             delete el.dataset.empty;
 
-            const audio = document.getElementById('audio');
-            const t = audio ? audio.currentTime : 0;
+            const t = panelTime();
 
             let currentIdx = -1;
             for (let i = 0; i < lines.length; i++) {
@@ -2187,7 +2194,7 @@ try {
             const tv = window.createTabView({
                 container: tabContainer,
                 getBeats: () => panel.hw.getBeats(),
-                getCurrentTime: () => document.getElementById('audio').currentTime,
+                getCurrentTime: () => panelTime(),
             });
             await tv.load(data);
             tv.startSync();
@@ -2957,6 +2964,12 @@ try {
             stopTimeSync();
         } finally {
             _starting = false;
+            if (_stopAfterStart) {
+                _stopAfterStart = false;
+                _pendingRedocks.length = 0;
+                _pendingRebuild = false;
+                if (active) stopSplitScreen();
+            } else {
             // Drain redock requests that arrived mid-start (popup's `docked`
             // message). Each _redockPanel re-enters startSplitScreen (setting
             // _starting), whose own finally drains the rest — so stop here as
@@ -2973,6 +2986,7 @@ try {
             if (_pendingRebuild) {
                 _pendingRebuild = false;
                 if (active) rebuildLayout();
+            }
             }
         }
     }
@@ -3159,7 +3173,7 @@ try {
             popupId: popupId || '',
             filename: currentFilename,
             cfg: _lanShare.cfg || null,
-            t: (audio && Number.isFinite(audio.currentTime)) ? audio.currentTime : 0,
+            t: Number.isFinite(panelTime()) ? panelTime() : 0,
             playing: !!(audio && !audio.paused),
         };
     }
@@ -4858,6 +4872,8 @@ try {
             getSyncUrl, generateRoomKey, normalizeRoomKey, ensureRoomKey,
             buildShareUrl, makeRemoteFollowerCfg, ROOM_KEY_ALPHABET,
             _setArrangementsForTest(next) { arrangements = next; },
+            _setStartingForTest(v) { _starting = !!v; },
+            _stopAfterStartForTest() { return _stopAfterStart; },
         };
     }
 })();

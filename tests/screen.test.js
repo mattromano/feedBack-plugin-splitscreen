@@ -291,7 +291,9 @@ test('custom: without core\'s hide list every view stays offered', () => {
 
 // ── Display time (A-B loop count-in rewind sweep) + public stop() ──
 function withAudio(mod, currentTime) {
+    const orig = global.document.getElementById;
     global.document.getElementById = (id) => (id === 'audio' ? { currentTime, paused: false } : null);
+    mod._restoreDoc = () => { global.document.getElementById = orig; };
     return mod;
 }
 
@@ -299,18 +301,21 @@ test('panelTime prefers display time', () => {
     const mod = withAudio(freshPlugin(), 9);
     global.window.feedBack = { getDisplayTime: () => 3.5 };
     assert.equal(mod.panelTime(), 3.5);
+    mod._restoreDoc();
 });
 
 test('panelTime falls back to audio without getDisplayTime', () => {
     const mod = withAudio(freshPlugin(), 9);
     global.window.feedBack = {};
     assert.equal(mod.panelTime(), 9);
+    mod._restoreDoc();
 });
 
 test('panelTime falls back to audio when display time is non-finite', () => {
     const mod = withAudio(freshPlugin(), 9);
     global.window.feedBack = { getDisplayTime: () => NaN };
     assert.equal(mod.panelTime(), 9);
+    mod._restoreDoc();
 });
 
 test('stop is a no-op when inactive', () => {
@@ -318,4 +323,12 @@ test('stop is a no-op when inactive', () => {
     assert.equal(typeof global.window.slopsmithSplitscreen.stop, 'function');
     assert.doesNotThrow(() => global.window.slopsmithSplitscreen.stop());
     assert.equal(global.localStorage.getItem('splitscreenActive'), null);
+});
+
+test('stop during an in-flight start persists intent and defers teardown', () => {
+    const mod = freshPlugin();
+    mod._setStartingForTest(true);
+    global.window.slopsmithSplitscreen.stop();
+    assert.equal(global.localStorage.getItem('splitscreenActive'), 'false');
+    assert.equal(mod._stopAfterStartForTest(), true);
 });
